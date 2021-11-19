@@ -1,5 +1,4 @@
 #include <iostream>
-#include <deque>
 #include "Connectible.h"
 
 constexpr int WINDOW_WIDTH = 640,
@@ -14,23 +13,39 @@ int viewWidth = WINDOW_WIDTH,
 using std::cout;
 using std::endl;
 using std::vector;
-using std::deque;
 using std::shared_ptr;
 using std::make_shared;
 
-deque<shared_ptr<Connectible>> renderedConnectibles;
-deque<ConnectibleGrid> connectibleGrids;
+vector<shared_ptr<Connectible>> renderedConnectibles;
+vector<ConnectibleGrid*> connectibleGrids;
 Connectible* selectedConnectible = nullptr;
 
-static void DestroyGrid(ConnectibleGrid* grid) {
+void DestroyGrid(ConnectibleGrid* grid) {
 	for (int k = 0; k < connectibleGrids.size(); k++) {
-		if (&connectibleGrids[k] == grid) {
+		if (connectibleGrids[k] == grid) {
+			free(connectibleGrids[k]);
 			connectibleGrids.erase(connectibleGrids.begin() + k);
 			break;
 		}
 	}
 
 	cout << ">DESTROYED GRID< ";
+}
+
+ConnectibleGrid* CreateGrid() {
+	ConnectibleGrid* allocatedGrid = (ConnectibleGrid*)malloc(sizeof(ConnectibleGrid));
+
+	if (allocatedGrid != NULL) {
+		connectibleGrids.push_back(allocatedGrid);
+		connectibleGrids.back() = new ConnectibleGrid();
+		cout << "<NEW GRID> ";
+
+		return connectibleGrids.back();
+	}
+
+	cout << "!!GRID ALLOCATION FAILED!!";
+	// Recursion might not be the best solution
+	return CreateGrid();
 }
 
 void mouseClickCallback(GLFWwindow* window, int button, int action, int mods)
@@ -54,42 +69,40 @@ void mouseClickCallback(GLFWwindow* window, int button, int action, int mods)
 				&&
 				(cursorWindowPositionY < renderedConnectibles[i]->y + renderedConnectibles[i]->height / 2 && cursorWindowPositionY > renderedConnectibles[i]->y - renderedConnectibles[i]->height / 2))
 			{
+				#ifdef _DEBUG
+					if (button == 2) {
+						cout << renderedConnectibles[i] << endl;
+						return;
+					}
+				#endif
+
 				// Check for selected
 				if (selectedConnectible != nullptr && selectedConnectible != renderedConnectibles[i].get()) {
 					// 0 - Left
 					// 1 - Right
 					// 2 - Middle
-					if (button == 0) { // Construction
+					if (button == 0) { // Power Line Construction
 						// Connect according to the situation
 						if (renderedConnectibles[i]->connectedGrid == nullptr && selectedConnectible->connectedGrid != nullptr) { // Connect to previous
 
 							renderedConnectibles[i]->Connect(selectedConnectible->connectedGrid, selectedConnectible);
 							renderedConnectibles[i]->AddEnergyToGrid();
-
-							// Push rendered lines
-							//(**&renderedConnectibles[selectedConnectibleIndex]->connectedGrid).renderedLines.push_back({ i, selectedConnectibleIndex });
 						}
 						else if (renderedConnectibles[i]->connectedGrid != nullptr && selectedConnectible->connectedGrid == nullptr) { // Connect to this
 
 							selectedConnectible->Connect(renderedConnectibles[i]->connectedGrid, renderedConnectibles[i].get());
 							selectedConnectible->AddEnergyToGrid();
-
-							// Push rendered lines
-							//(**&renderedConnectibles[i]->connectedGrid).renderedLines.push_back({ i, selectedConnectibleIndex });
 						}
 						else if (renderedConnectibles[i]->connectedGrid == nullptr && selectedConnectible->connectedGrid == nullptr) { // New Grid
 
-							connectibleGrids.push_back(ConnectibleGrid());
+							ConnectibleGrid* createdGrid = CreateGrid();
 
 							// Connect
-							renderedConnectibles[i]->Connect(&connectibleGrids.at(connectibleGrids.size() - 1), nullptr);
+							renderedConnectibles[i]->Connect(createdGrid, nullptr);
 							renderedConnectibles[i]->AddEnergyToGrid();
 
-							selectedConnectible->Connect(&connectibleGrids.at(connectibleGrids.size() - 1), renderedConnectibles[i].get());
+							selectedConnectible->Connect(createdGrid, renderedConnectibles[i].get());
 							selectedConnectible->AddEnergyToGrid();
-
-							// Push rendered lines
-							//connectibleGrids[connectibleGrids.size() - 1].renderedLines.push_back({i, selectedConnectibleIndex});
 						}
 						else if (renderedConnectibles[i]->connectedGrid == selectedConnectible->connectedGrid) { // Share the same network
 							cout << "!Already ";
@@ -109,7 +122,7 @@ void mouseClickCallback(GLFWwindow* window, int button, int action, int mods)
 
 						cout << "Connected Poles" << endl;
 					}
-					else if (button == 1) { //Destruction of power lines
+					else if (button == 1) { // Power Line Destruction
 						
 						if (selectedConnectible->IsConnected(renderedConnectibles[i].get())) {
 
@@ -120,34 +133,35 @@ void mouseClickCallback(GLFWwindow* window, int button, int action, int mods)
 							renderedConnectibles[i]->Disconnect(selectedConnectible);
 
 							// Handle disconnection
-							if (renderedConnectibles[i]->connectedConnectibles.size() == 0 && selectedConnectible->connectedConnectibles.size() > 0) { // Disconnect from this
+							if (renderedConnectibles[i]->connectedConnectibles.empty() && !selectedConnectible->connectedConnectibles.empty()) { // Disconnect from this
 								renderedConnectibles[i]->connectedGrid = nullptr;
 
 								otherGrid = selectedConnectible->RecursiveSearch(nullptr);
 							}
-							else if (renderedConnectibles[i]->connectedConnectibles.size() > 0 && selectedConnectible->connectedConnectibles.size() == 0) { // Disconnect from previous
+							else if (!renderedConnectibles[i]->connectedConnectibles.empty() && selectedConnectible->connectedConnectibles.empty()) { // Disconnect from previous
 								selectedConnectible->connectedGrid = nullptr;
 
 								otherGrid = renderedConnectibles[i]->RecursiveSearch(nullptr);
 							}
-							else if (renderedConnectibles[i]->connectedConnectibles.size() > 0 && selectedConnectible->connectedConnectibles.size() > 0) { // Disconnect to separate networks
+							else if (!renderedConnectibles[i]->connectedConnectibles.empty() && !selectedConnectible->connectedConnectibles.empty()) { // Disconnect to separate networks
 								vector<Connectible*> newGrid = renderedConnectibles[i]->RecursiveSearch(nullptr);
 								otherGrid = selectedConnectible->RecursiveSearch(nullptr);
+
+								ConnectibleGrid* createdGrid = CreateGrid();
 								
-								connectibleGrids.push_back(ConnectibleGrid());
 								for (Connectible* c : newGrid) {
-									c->connectedGrid = &connectibleGrids.at(connectibleGrids.size() - 1);
+									c->connectedGrid = createdGrid;
 									c->AddEnergyToGrid();
 								}
 							}
-							else if (renderedConnectibles[i]->connectedConnectibles.size() == 0 && selectedConnectible->connectedConnectibles.size() == 0) { // Disconnect with no other connections
+							else if (renderedConnectibles[i]->connectedConnectibles.empty() && selectedConnectible->connectedConnectibles.empty()) { // Disconnect with no other connections
 								DestroyGrid(renderedConnectibles[i]->connectedGrid);
 
 								renderedConnectibles[i]->connectedGrid = nullptr;
 								selectedConnectible->connectedGrid = nullptr;
 							}
 
-							if (otherGrid.size() > 0) {
+							if (!otherGrid.empty()) {
 								otherGrid[0]->connectedGrid->ResetEnergy();
 								for (Connectible* c : otherGrid) {
 									c->AddEnergyToGrid();
@@ -174,14 +188,14 @@ void mouseClickCallback(GLFWwindow* window, int button, int action, int mods)
 				return;
 			}
 
-			// TODO: Reverse this equation (to avoid having a default 5 in distance)
 			// TODO: Pass as pointer
-			if(mods != 0)
+			// TODO: Calculate distance on different thread
+			if(mods != 0 && button == 0)
 				closestConnectible.Check(sqrt(pow(cursorWindowPositionX - renderedConnectibles[i]->x, 2) + pow(cursorWindowPositionY - renderedConnectibles[i]->y, 2)), i);
 		}
 
-		if (closestConnectible.index != -1 && closestConnectible.distance < 0.5) {
-			if (closestConnectible.distance < (renderedConnectibles[closestConnectible.index]->width + renderedConnectibles[closestConnectible.index]->height) / 2) {
+		if (closestConnectible.index != -1 && closestConnectible.maximumDistance < 0.5) {
+			if (closestConnectible.maximumDistance < (renderedConnectibles[closestConnectible.index]->width + renderedConnectibles[closestConnectible.index]->height) / 2) {
 				cout << "!TOO CLOSE" << endl;
 				return;
 			}
@@ -237,7 +251,7 @@ void windowResizeCallback(GLFWwindow* window, int width, int height) {
 	}
 }*/
 
-static int getConnectibleIndexByPointer(Connectible* pointer) {
+int getConnectibleIndexByPointer(Connectible* pointer) {
 	for (int i = 0; i < renderedConnectibles.size(); i++) {
 		if (renderedConnectibles[i].get() == pointer)
 			return i;
@@ -279,7 +293,7 @@ int main()
 		/* Render here */
 		// Draw Power Lines
 		for (int i = 0; i < renderedConnectibles.size(); i++) {
-			if (renderedConnectibles[i]->connectedConnectibles.size() > 0) {
+			if (!renderedConnectibles[i]->connectedConnectibles.empty()) {
 				for (int j = 0; j < renderedConnectibles[i]->connectedConnectibles.size(); j++) {
 					if (getConnectibleIndexByPointer(renderedConnectibles[i]->connectedConnectibles[j]) > i) {
 						glColor3f(renderedConnectibles[i]->connectedGrid->gridColor.red, renderedConnectibles[i]->connectedGrid->gridColor.green, renderedConnectibles[i]->connectedGrid->gridColor.blue);
@@ -312,31 +326,48 @@ int main()
 		}
 
 		// Draw Grid Energy Bar
+		int operationalGridCounter = 0;
 		for (int i = 0; i < connectibleGrids.size(); i++) {
-			/*glBegin(GL_QUADS);
-				glVertex2f(-1 + cellPadding, 1 - ((barHeight + cellPadding) * i + barHeight)); // BOTTOM LEFT
-				glVertex2f(1 - cellPadding, 1 - ((barHeight + cellPadding) * i + barHeight)); // BOTTOM RIGHT
-				glVertex2f(1 - cellPadding, 1 - ((barHeight + cellPadding) * i)); // TOP RIGHT
-				glVertex2f(-1 + cellPadding, 1 - ((barHeight + cellPadding) * i)); // TOP LEFT
-			glEnd();*/
+			if (connectibleGrids[i]->generatedEnergy > 0) {
 
-			for (int j = 0; j < connectibleGrids[i].generatedEnergy; j++) {
-				connectibleGrids[i].gridColor.GlColor();
-				glBegin(GL_QUADS);
-					glVertex2f(-1 + j / (float)connectibleGrids[i].generatedEnergy * 2 + cellPadding, 1 - ((barHeight + cellPadding) * i + barHeight)); // BOTTOM LEFT
-					glVertex2f(-1 + (j + 1) / (float)connectibleGrids[i].generatedEnergy * 2 - cellPadding, 1 - ((barHeight + cellPadding) * i + barHeight)); // BOTTOM RIGHT
-					glVertex2f(-1 + (j + 1) / (float)connectibleGrids[i].generatedEnergy * 2 - cellPadding, 1 - ((barHeight + cellPadding) * i)); // TOP RIGHT
-					glVertex2f(-1 + j / (float)connectibleGrids[i].generatedEnergy * 2 + cellPadding, 1 - ((barHeight + cellPadding) * i)); // TOP LEFT
-				glEnd();
-
-				if (connectibleGrids[i].consumedEnergy > j) {
-					glColor3f(0, 0, 0);
-					glLineWidth(barHeight * 150);
-					glBegin(GL_LINES);
-						glVertex2f(-1 + j / (float)connectibleGrids[i].generatedEnergy * 2 + cellPadding * 2, 1 - ((barHeight + cellPadding) * i + barHeight / 2)); // BOTTOM LEFT
-						glVertex2f(-1 + (j + 1) / (float)connectibleGrids[i].generatedEnergy * 2 - cellPadding * 2, 1 - ((barHeight + cellPadding) * i + barHeight / 2)); // TOP RIGHT
+				/*if (connectibleGrids[i].consumedEnergy > connectibleGrids[i].generatedEnergy) {
+					glColor3f(1, 0, 0);
+					glBegin(GL_QUADS);
+						glVertex2f(-1, 1 - ((barHeight + cellPadding) * operationalGridCounter + barHeight)); // BOTTOM LEFT
+						glVertex2f(1, 1 - ((barHeight + cellPadding) * operationalGridCounter + barHeight)); // BOTTOM RIGHT
+						glVertex2f(1, 1 - ((barHeight + cellPadding) * operationalGridCounter)); // TOP RIGHT
+						glVertex2f(-1, 1 - ((barHeight + cellPadding) * operationalGridCounter)); // TOP LEFT
 					glEnd();
+				}*/
+
+				for (int j = 0; j < connectibleGrids[i]->generatedEnergy; j++) {
+					connectibleGrids[i]->gridColor.SetGlColor();
+					glBegin(GL_QUADS);
+						glVertex2f(-1 + j / (float)connectibleGrids[i]->generatedEnergy * 2 + cellPadding, 1 - ((barHeight + cellPadding) * operationalGridCounter + barHeight)); // BOTTOM LEFT
+						glVertex2f(-1 + (j + 1) / (float)connectibleGrids[i]->generatedEnergy * 2 - cellPadding, 1 - ((barHeight + cellPadding) * operationalGridCounter + barHeight)); // BOTTOM RIGHT
+						glVertex2f(-1 + (j + 1) / (float)connectibleGrids[i]->generatedEnergy * 2 - cellPadding, 1 - ((barHeight + cellPadding) * operationalGridCounter)); // TOP RIGHT
+						glVertex2f(-1 + j / (float)connectibleGrids[i]->generatedEnergy * 2 + cellPadding, 1 - ((barHeight + cellPadding) * operationalGridCounter)); // TOP LEFT
+					glEnd();
+
+					if (connectibleGrids[i]->consumedEnergy > connectibleGrids[i]->generatedEnergy) { // Consumption exceeds generation
+						glColor3f(1, 0, 0);
+						glLineWidth(barHeight * 150);
+						glBegin(GL_LINES);
+							glVertex2f(-1, 1 - ((barHeight + cellPadding) * operationalGridCounter + barHeight / 2)); // LEFT
+							glVertex2f(1, 1 - ((barHeight + cellPadding) * operationalGridCounter + barHeight / 2)); // RIGHT
+						glEnd();
+
+					} else if (connectibleGrids[i]->consumedEnergy > j) {
+						glColor3f(0, 0, 0);
+						glLineWidth(barHeight * 150);
+						glBegin(GL_LINES);
+							glVertex2f(-1 + j / (float)connectibleGrids[i]->generatedEnergy * 2 + cellPadding * 2, 1 - ((barHeight + cellPadding) * operationalGridCounter + barHeight / 2)); // LEFT
+							glVertex2f(-1 + (j + 1) / (float)connectibleGrids[i]->generatedEnergy * 2 - cellPadding * 2, 1 - ((barHeight + cellPadding) * operationalGridCounter + barHeight / 2)); // RIGHT
+						glEnd();
+					}
 				}
+
+				operationalGridCounter++;
 			}
 		}
 		

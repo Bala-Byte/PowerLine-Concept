@@ -12,6 +12,6 @@ class Color
 		Color(int red, int green, int blue);
 		Color(float red, float green, float blue);
 		void RandomizeColors();
-		void GlColor();
+		void SetGlColor();
 };
 

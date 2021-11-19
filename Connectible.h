@@ -38,7 +38,7 @@ class Connectible
 		vector<Connectible*> connectedConnectibles;
 
 		Connectible(float x, float y);
-		void Draw(bool selected);
+		virtual void Draw(bool selected);
 		bool IsConnected(Connectible* other);
 		vector<Connectible*> RecursiveSearch(Connectible* previous);
 		virtual void AddEnergyToGrid();
@@ -62,16 +62,17 @@ class Generator : public Connectible {
 
 class Receiver : public Connectible {
 	public:
-		int energyConsumed = 1;
+		int energyConsumed = 4;
 
 		Receiver(float x, float y);
+		void Draw(bool selected);
 		void AddEnergyToGrid();
 };
 
 // Helping class
 class ClosestConnectible {
 	public:
-		double distance = 5;
+		double maximumDistance = 5;
 		int index = -1;
 
 		void Check(double distance, int connectibleIndex);

@@ -15,12 +15,12 @@ Color::Color(int red, int green, int blue)
 
 void Color::RandomizeColors()
 {
-	this->red = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-	this->green = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-	this->blue = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+	this->red = rand() / (float)RAND_MAX;
+	this->green = rand() / (float)RAND_MAX;
+	this->blue = rand() / (float)RAND_MAX;
 }
 
-void Color::GlColor()
+void Color::SetGlColor()
 {
 	glColor3f(this->red, this->green, this->blue);
 }

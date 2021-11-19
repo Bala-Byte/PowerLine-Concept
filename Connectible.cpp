@@ -20,10 +20,8 @@ Connectible::Connectible(float x, float y)
 };
 
 void Connectible::Draw(bool selected) {
-	// TODO: Display energy generation/consumption (by dividing the square)
-	// TODO: Display if receiver is not operation
 	if (selected) {
-		borderColor.GlColor();
+		borderColor.SetGlColor();
 		glBegin(GL_QUADS);
 			glVertex2f(this->x - (this->width + this->borderWidth) / 2, this->y - (this->height + this->borderHeight) / 2); // BOTTOM LEFT
 			glVertex2f(this->x + (this->width + this->borderWidth) / 2, this->y - (this->height + this->borderHeight) / 2); // BOTTOM RIGHT
@@ -32,7 +30,7 @@ void Connectible::Draw(bool selected) {
 		glEnd();
 	}
 
-	baseColor.GlColor();
+	baseColor.SetGlColor();
 	glBegin(GL_QUADS);
 		glVertex2f(this->x - this->width / 2, this->y - this->height / 2); // BOTTOM LEFT
 		glVertex2f(this->x + this->width / 2, this->y - this->height / 2); // BOTTOM RIGHT
@@ -42,7 +40,7 @@ void Connectible::Draw(bool selected) {
 }
 
 bool Connectible::IsConnected(Connectible* other) {
-	if (this->connectedConnectibles.size() > 0) {
+	if (!this->connectedConnectibles.empty()) {
 		for (Connectible* nthConected : this->connectedConnectibles) {
 			if (nthConected == other) {
 				return true;
@@ -135,6 +133,38 @@ Receiver::Receiver(float x, float y) : Connectible(x, y) {
 	this->height = .2f;
 }
 
+void Receiver::Draw(bool selected) {
+	Connectible::Draw(selected);
+
+	// TODO: Display energy consumption (by dividing the Connectible square)
+	/*if (this->energyConsumed > 1) {
+		glColor3f(0, 0, 0);
+		glLineWidth(5);
+		for (int i = 1; i <= this->energyConsumed; i++) {
+			
+			glBegin(GL_LINES);
+			if (i % 2 == 0) { // Vertical
+				glVertex2f((this->x - this->width / 2) + (this->width / (i * (i / (float) 2))), this->y + this->height / 2); // TOP
+				glVertex2f((this->x - this->width / 2) + (this->width / (i * (i / (float) 2))), this->y - this->height / 2); // BOTTOM
+			}
+			else { // Horizontal
+
+			}
+			glEnd();
+		}
+	}*/
+
+	// Display operation state
+	if (this->connectedGrid && this->connectedGrid->consumedEnergy > this->connectedGrid->generatedEnergy) {
+		glColor3f(1, 0, 0);
+		glLineWidth(5);
+		glBegin(GL_LINES);
+			glVertex2f(this->x - (this->width + this->borderWidth) / 2, this->y + (this->height + this->borderHeight) / 2); // TOP LEFT
+			glVertex2f(this->x + (this->width + this->borderWidth) / 2, this->y - (this->height + this->borderHeight) / 2); // BOTTOM RIGHT
+		glEnd();
+	}
+}
+
 /*void Receiver::Connect(ConnectibleGrid* grid Connectible* other)
 {
 	grid->receivers.push_back(this);
@@ -150,12 +180,13 @@ void Receiver::AddEnergyToGrid() {
 	this->connectedGrid->consumedEnergy += this->energyConsumed;
 };
 
+
 // CLOSEST CONNECTIBLE
 
 void ClosestConnectible::Check(double distance, int connectibleIndex)
 {
-	if (distance < this->distance) {
-		this->distance = distance;
+	if (distance < this->maximumDistance) {
+		this->maximumDistance = distance;
 		this->index = connectibleIndex;
 	}
 }
